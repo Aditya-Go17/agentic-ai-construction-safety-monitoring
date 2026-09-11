@@ -9,3 +9,6 @@ env/
 
 # Environment secrets / API keys
 .env
+
+# Ignore uploads folder
+uploads/
