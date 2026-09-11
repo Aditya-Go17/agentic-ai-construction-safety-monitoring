@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Regulatory Compliance</h2>
+    <p>Compliance Agent validates every site against BOCW Act 1996, National Building Code 2016, BIS standards and CPCB norms — tracking permits, inspections and corrective notices.</p>
+  </div>
+  <div class="right"><a class="btn ghost sm" href="/reports?doc=audit">{{ icons.doc() }} Generate audit pack</a></div>
+</div>
+
+<section class="grid g4" id="kpis"></section>
+
+<section class="grid g12">
+  <div class="card c8">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(62,201,167,.12);color:var(--purple)">{{ icons.clipboard() }}</div>
+      <h3>Standards &amp; Checks Register</h3>
+      <div class="right">
+        <div class="filter-chips" id="filters">
+          <span class="fchip on" data-f="all">All</span><span class="fchip" data-f="FAIL">Failing</span>
+          <span class="fchip" data-f="RISK">At risk</span><span class="fchip" data-f="PASS">Passing</span>
+        </div>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="checkTbl">
+      <thead><tr><th>Check</th><th>Standard ref</th><th>Site</th><th>Status</th><th>Due</th><th>Last done</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="card c4">
+    <div class="card-h"><h3>Inspection Radar</h3><div class="right"><span class="chip mut">next 5 days</span></div></div>
+    <div id="inspList" style="max-height:420px;overflow-y:auto"></div>
+  </div>
+</section>
+
+<section class="grid g12">
+  <div class="card c4">
+    <div class="card-h"><h3>Status Split</h3></div>
+    <div id="statusDonut"></div>
+    <div id="statusLegend" class="flex" style="justify-content:center;flex-wrap:wrap;gap:12px;margin-top:8px"></div>
+  </div>
+  <div class="card c8">
+    <div class="card-h"><h3>Compliance Rate by Site</h3><div class="right"><span class="chip mut">% checks passing</span></div></div>
+    <div id="siteBars"></div>
+    <div class="grid g3 mt14" style="margin-bottom:0" id="framework"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts;
+  let D = window.__INIT;
+  let filter = "all";
+
+  function kpis(d) {
+    const items = [
+      ["Compliance rate", d.kpis.rate + "%", "clipboard", "#3ec9a7"],
+      ["Overdue inspections", d.kpis.overdue, "clock", "#ff8a1e"],
+      ["Failing checks", d.kpis.failing, "x", "#ff4d3d"],
+      ["Audit readiness", d.kpis.audit_ready + "%", "shield", "#8fd14f"]
+    ];
+    A.q("#kpis").innerHTML = items.map(([l, v, ic, c], i) => `
+      <div class="card kpi"><div class="k-top"><div class="k-ic" style="background:${c}1c;color:${c}">${A.icon(ic)}</div><div class="k-label">${l}</div></div>
+      <div class="k-val">${v}</div><div class="k-foot"><span class="dim" style="font-size:11px">${l.includes("rate") || l.includes("readiness") ? "target ≥ 95%" : "regulatory items"}</span>
+      <div class="k-spark" id="csp_${i}"></div></div></div>`).join("");
+    items.forEach(([l, v, ic, c], i) => C.spark(`#csp_${i}`, { data: Array.from({ length: 20 }, (_, j) => v * (0.8 + Math.sin(j / 2.5 + i) * 0.12 + Math.random() * 0.06)), color: c }));
+  }
+
+  function rows(d) {
+    const list = d.rows.filter(r => filter === "all" || r.status === filter);
+    A.q("#checkTbl tbody").innerHTML = list.length ? list.map(r => `
+      <tr><td><b>${A.esc(r.title)}</b></td><td class="num dim">${A.esc(r.ref)}</td><td>${A.esc(r.site)}</td>
+      <td><span class="chip ${r.status === "PASS" ? "low" : r.status === "RISK" ? "mod" : "crit"}"><span class="cdot"></span>${r.status}</span></td>
+      <td class="num" style="color:${r.due_days < 0 ? "#ff4d3d" : r.due_days < 7 ? "#ff8a1e" : "var(--mut)"}">${r.due_days < 0 ? Math.abs(r.due_days) + "d overdue" : r.due_days + "d"}</td>
+      <td class="num dim">${r.last_done}d ago</td></tr>`).join("") : '<tr><td colspan="6"><div class="empty">No checks in this view ✓</div></td></tr>';
+  }
+
+  function inspections(d) {
+    A.q("#inspList").innerHTML = d.inspections.length ? d.inspections.map(i => {
+      const overdue = i.due_days < 0;
+      const dd = new Date(); dd.setDate(dd.getDate() + Math.max(i.due_days, 0));
+      const mth = dd.toLocaleString("en-IN", { month: "short", timeZone: "Asia/Kolkata" }).toUpperCase();
+      return `<div class="insp-item">
+        <div class="insp-date"><div><div class="d">${overdue ? "!" : dd.getDate()}</div><div class="m">${overdue ? "LATE" : mth}</div></div></div>
+        <div style="flex:1;min-width:0"><b style="font-size:12.8px">${A.esc(i.title)}</b>
+          <div class="dim" style="font-size:11px;margin-top:2px">${A.esc(i.site)} · ${A.esc(i.ref)}</div></div>
+        <span class="chip ${overdue ? "crit" : i.status === "FAIL" ? "crit" : "mod"}">${overdue ? "overdue" : i.status}</span>
+      </div>`;
+    }).join("") : '<div class="empty">Nothing due — clear runway ✓</div>';
+  }
+
+  function donut(d) {
+    const items = [
+      { label: "PASS", value: d.counts.PASS, color: "#8fd14f" },
+      { label: "RISK", value: d.counts.RISK, color: "#ffcf3f" },
+      { label: "FAIL", value: d.counts.FAIL, color: "#ff4d3d" }
+    ];
+    C.donut("#statusDonut", { size: 165, center: d.kpis.rate + "%", centerSub: "COMPLIANCE", items });
+    A.q("#statusLegend").innerHTML = items.map(i =>
+      `<span class="flex" style="gap:6px;font-size:11.5px;color:var(--mut)"><i style="width:9px;height:9px;border-radius:3px;background:${i.color};display:inline-block"></i>${i.label} <b style="color:var(--txt)">${i.value}</b></span>`).join("");
+  }
+
+  function bars(d) {
+    C.hbars("#siteBars", { items: d.by_site.map(s => ({ label: s.site, value: s.rate, color: s.rate > 85 ? "#8fd14f" : s.rate > 70 ? "#ffcf3f" : "#ff8a1e", display: s.rate + "%" })), max: 100, suffix: "", valW: 52, labelW: 90 });
+    A.q("#framework").innerHTML = d.framework.map(f => `
+      <div class="env-tile"><div class="l">${A.icon("doc")} ${f[0]}</div><div class="mut" style="font-size:11.5px;line-height:1.5;text-transform:none;letter-spacing:0">${f[1]}</div></div>`).join("");
+  }
+
+  function all(d) { kpis(d); rows(d); inspections(d); donut(d); bars(d); }
+  all(D);
+  A.qa("#filters .fchip").forEach(ch => ch.addEventListener("click", () => {
+    A.qa("#filters .fchip").forEach(c => c.classList.remove("on"));
+    ch.classList.add("on"); filter = ch.dataset.f; rows(D);
+  }));
+  App.poll("/api/compliance", 8000, d => { D = d; all(d); });
+})();
+</script>
+{% endblock %}

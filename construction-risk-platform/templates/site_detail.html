@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <div class="crumb dim" style="font-size:11px;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:4px"><a href="/sites" style="color:var(--dim)">Sites</a> / {{ d.site.id }}</div>
+    <h2>{{ d.site.name }}</h2>
+    <p>{{ d.site.typelabel }} · {{ d.site.city }} · operated by {{ d.site.contractor }} · {{ d.site.cameras }} vision CAMs · policy {{ d.site.insurance.policy }}</p>
+  </div>
+  <div class="right">
+    <span class="chip mut"><span class="cdot"></span><span id="hdWorkers">{{ d.site.workers_now }}</span> on shift</span>
+    <a class="btn ghost sm" href="/reports?doc=daily&site={{ d.site.id }}">{{ icons.doc() }} Daily report</a>
+  </div>
+</div>
+
+<!-- ═══ score + subscores + prediction ═══ -->
+<section class="grid g12">
+  <div class="card c4" style="display:flex;flex-direction:column;align-items:center">
+    <div class="card-h" style="width:100%"><h3>Site Risk Index</h3></div>
+    <div id="siteGauge" style="width:100%"></div>
+    <div id="siteBand"></div>
+  </div>
+  <div class="card c5">
+    <div class="card-h"><h3>Factor Breakdown</h3><div class="right"><span class="chip mut">agent-weighted</span></div></div>
+    <div id="subscores"></div>
+  </div>
+  <div class="card c3">
+    <div class="card-h"><h3>24h Forecast</h3></div>
+    <div style="text-align:center;padding:8px 0">
+      <div class="k-val" id="predProb" style="font-size:44px;font-weight:800">{{ d.site.prediction.prob }}%</div>
+      <div id="predClass"></div>
+      <p class="mut" style="font-size:12px;margin-top:10px;line-height:1.6">Risk Intelligence Engine probability of a recordable incident in the next 24 hours, from trend slope + hazard density + weather envelope.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ZONE MAP + side panel ═══ -->
+<section class="grid g12">
+  <div class="card c8 zonemap-wrap">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(77,184,255,.12);color:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4L4 6v14l5-2 6 2 5-2V4l-5 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></div>
+      <h3>Live Zone Map <span class="sub">· click a zone</span></h3>
+      <div class="right"><span class="live-badge" style="padding:4px 9px;font-size:9.5px"><span class="live-dot"></span>CAM GRID</span></div>
+    </div>
+    <svg class="zonemap" id="zoneMap" viewBox="0 0 800 520"></svg>
+    <div class="zm-legend">
+      <span><i style="background:rgba(143,209,79,.5)"></i> Low (&lt;35)</span>
+      <span><i style="background:rgba(255,207,63,.5)"></i> Moderate</span>
+      <span><i style="background:rgba(255,138,30,.5)"></i> High</span>
+      <span><i style="background:rgba(255,77,61,.5)"></i> Critical</span>
+      <span><i style="background:var(--red);border-radius:50%"></i> Active hazard pin</span>
+      <span><i style="background:var(--amber);border-radius:50%"></i> Crane</span>
+    </div>
+  </div>
+  <div class="card c4">
+    <div class="card-h"><h3>Zone Detail</h3><div class="right"><span class="chip mut" id="zoneChip">select zone</span></div></div>
+    <div id="zonePanel"><div class="empty">Click any zone on the map to inspect its risk, hazards and equipment.</div></div>
+  </div>
+</section>
+
+<!-- ═══ ENVIRONMENT ═══ -->
+<section class="card">
+  <div class="card-h">
+    <div class="h-ic" style="background:rgba(77,184,255,.12);color:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/><path d="M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2"/></svg></div>
+    <h3>Environmental Telemetry <span class="sub">· Site Risk Agent</span></h3>
+    <div class="right"><span class="chip info"><span class="cdot"></span>streaming</span></div>
+  </div>
+  <div class="grid g4" style="margin-bottom:0" id="envTiles"></div>
+</section>
+
+<!-- ═══ EQUIPMENT + HAZARDS ═══ -->
+<section class="grid g12">
+  <div class="card c7">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,196,0,.12);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h9M6 22V4l12 4M18 8v3"/></svg></div>
+      <h3>Equipment Telemetry</h3>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="eqTable">
+      <thead><tr><th>Unit</th><th>Zone</th><th>Status</th><th>Load</th><th>Temp</th><th>Vibration</th><th>Service</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="card c5">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,77,61,.12);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+      <h3>Open Hazards</h3>
+      <div class="right"><span class="chip crit" id="hzCount"></span></div>
+    </div>
+    <div id="hzList" style="max-height:330px;overflow-y:auto"></div>
+  </div>
+</section>
+
+<!-- ═══ trend ═══ -->
+<section class="card">
+  <div class="card-h"><h3>Site Risk Trend <span class="sub">· rolling window</span></h3>
+  <div class="right"><span class="chip mut">threshold 75</span></div></div>
+  <div id="siteTrend"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts;
+  let S = window.__INIT.site;
+  const SEVC = { CRITICAL: "#ff4d3d", HIGH: "#ff8a1e", MODERATE: "#ffcf3f", LOW: "#8fd14f" };
+  const FACTORS = [["weather", "Weather envelope"], ["equipment", "Equipment health"], ["hazards", "Open hazards"], ["behaviour", "Worker behaviour"], ["compliance", "Compliance debt"]];
+  const FACTOR_C = { weather: "#4db8ff", equipment: "#ffc400", hazards: "#ff4d3d", behaviour: "#3ec9a7", compliance: "#8fd14f" };
+  const ENV_META = [
+    ["wind", "Wind speed", "wind", "km/h"], ["temp", "Temperature", "temp", "°C"],
+    ["humidity", "Humidity", "drop", "%"], ["aqi", "Air quality", "sun", "AQI"],
+    ["noise", "Noise level", "noise", "dB"], ["vib", "Ground vibration", "wave", "mm/s"],
+    ["rain24", "Rainfall 24h", "drop", "mm"], ["", "Vision CAMs", "cam", "active"]
+  ];
+
+  function colorFor(v) { return v < 35 ? "#8fd14f" : v < 55 ? "#ffcf3f" : v < 75 ? "#ff8a1e" : "#ff4d3d"; }
+
+  function renderHead(s) {
+    C.gauge("#siteGauge", { value: s.score, sub: s.band, size: 220 });
+    A.q("#siteBand").innerHTML = A.bandChip(s.band);
+    A.q("#predClass").innerHTML = `<span class="chip ${s.prediction.prob > 55 ? "crit" : s.prediction.prob > 35 ? "high" : "low"}">${s.prediction.dclass}</span>`;
+    A.q("#subscores").innerHTML = FACTORS.map(([k, lbl]) => {
+      const v = s.sub[k] || 0, c = FACTOR_C[k];
+      return `<div class="subscore-row"><span class="lbl">${lbl}</span>
+        <div class="mbar"><i style="width:${v}%;background:linear-gradient(90deg,${c}77,${c})"></i></div>
+        <span class="val">${v.toFixed(0)}</span></div>`;
+    }).join("");
+    A.q("#hzCount").textContent = (s.hazards || []).length + " open";
+  }
+
+  function renderEnv(s) {
+    A.q("#envTiles").innerHTML = ENV_META.map(([k, lbl, ic, unit]) => {
+      const v = k ? s.env[k] : s.cameras;
+      const val = typeof v === "number" ? (k === "wind" || k === "aqi" || k === "noise" || k === "rain24" || k === "humidity" || k === "vib" ? v.toFixed(1) : Math.round(v)) : v;
+      return `<div class="env-tile"><div class="l">${A.icon(ic)} ${lbl}</div><div class="v">${val} <small>${unit}</small></div></div>`;
+    }).join("");
+  }
+
+  function zoneFill(risk) {
+    return risk < 35 ? "rgba(143,209,79,.16)" : risk < 55 ? "rgba(255,207,63,.16)" : risk < 75 ? "rgba(255,138,30,.2)" : "rgba(255,77,61,.22)";
+  }
+  function zoneStroke(risk) {
+    return risk < 35 ? "rgba(143,209,79,.55)" : risk < 55 ? "rgba(255,207,63,.55)" : risk < 75 ? "rgba(255,138,30,.6)" : "rgba(255,77,61,.65)";
+  }
+
+  let mapBuilt = false, selZone = null;
+  function renderMap(s) {
+    const svg = A.q("#zoneMap");
+    if (!mapBuilt) {
+      let html = "";
+      s.zones.forEach((z, i) => {
+        html += `<g class="zone-g" data-i="${i}">
+          <rect class="zone-rect" data-i="${i}" x="${z.x}" y="${z.y}" width="${z.w}" height="${z.h}" rx="13"/>
+          <text class="zone-label" x="${z.x + 12}" y="${z.y + 22}">${A.esc(z.name)}</text>
+          <text class="zone-sub" x="${z.x + 12}" y="${z.y + 38}">risk <tspan class="zr" data-i="${i}">${z.risk}</tspan> · hz <tspan class="zh" data-i="${i}">${z.hazards}</tspan></text>
+        </g>`;
+      });
+      // decorative crane at crane pad zone (zone index 3)
+      const cz = s.zones[3] || s.zones[0];
+      const cx = cz.x + cz.w * 0.62, cy = cz.y + cz.h * 0.62;
+      html += `<g class="crane-g" opacity="0.85">
+        <line x1="${cx - 26}" y1="${cy + 26}" x2="${cx + 26}" y2="${cy + 26}" stroke="#ffc400" stroke-width="3" stroke-linecap="round"/>
+        <line x1="${cx}" y1="${cy + 26}" x2="${cx}" y2="${cy - 26}" stroke="#ffc400" stroke-width="3" stroke-linecap="round"/>
+        <line x1="${cx - 22}" y1="${cy - 18}" x2="${cx + 22}" y2="${cy - 26}" stroke="#ffc400" stroke-width="2.4" stroke-linecap="round"/>
+        <line x1="${cx + 14}" y1="${cy - 24.4}" x2="${cx + 14}" y2="${cy - 6}" stroke="#ffcf3f" stroke-width="1.6"/>
+        <circle cx="${cx + 14}" cy="${cy - 3}" r="3" fill="#ffcf3f"/>
+      </g>`;
+      html += `<rect x="8" y="8" width="784" height="504" rx="18" fill="none" stroke="rgba(233,220,190,0.18)" stroke-dasharray="10 8"/>`;
+      svg.innerHTML = html;
+      svg.addEventListener("click", e => {
+        const r = e.target.closest(".zone-rect");
+        if (r) { selZone = +r.dataset.i; paintZones(); renderZonePanel(); }
+      });
+      mapBuilt = true;
+    }
+    paintZones();
+  }
+
+  function paintZones() {
+    const svg = A.q("#zoneMap");
+    svg.querySelectorAll(".zone-rect").forEach(rect => {
+      const i = +rect.dataset.i, z = S.zones[i];
+      rect.setAttribute("fill", zoneFill(z.risk));
+      rect.setAttribute("stroke", i === selZone ? "#fff" : zoneStroke(z.risk));
+    });
+    S.zones.forEach((z, i) => {
+      const r = svg.querySelector(`.zr[data-i="${i}"]`); if (r) r.textContent = z.risk;
+      const h = svg.querySelector(`.zh[data-i="${i}"]`); if (h) h.textContent = z.hazards;
+    });
+    // hazard pins
+    svg.querySelectorAll(".pin").forEach(p => p.remove());
+    (S.hazards || []).forEach((h, idx) => {
+      const z = S.zones.find(zz => zz.name === h.zone) || S.zones[idx % S.zones.length];
+      const px = z.x + 26 + ((idx * 53) % Math.max(z.w - 52, 10));
+      const py = z.y + 52 + ((idx * 37) % Math.max(z.h - 66, 10));
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "pin");
+      const sevColor = SEVC[h.severity] || "#ff4d3d";
+      g.innerHTML = `<circle class="pin-ring" cx="${px}" cy="${py}" r="7" style="stroke:${sevColor}"/>
+        <circle class="pin-circle" cx="${px}" cy="${py}" r="4.4" style="fill:${sevColor}"/>
+        <title>${A.esc(h.type)} — ${h.severity}</title>`;
+      svg.appendChild(g);
+    });
+  }
+
+  function renderZonePanel() {
+    if (selZone == null) return;
+    const z = S.zones[selZone];
+    const hzs = (S.hazards || []).filter(h => h.zone === z.name);
+    const eqs = (S.equipment || []).filter(e => e.zone === z.name);
+    A.q("#zoneChip").textContent = z.name;
+    A.q("#zonePanel").innerHTML = `
+      <div class="flex" style="justify-content:space-between;margin-bottom:10px">
+        <b style="font-size:15px">${A.esc(z.name)}</b>${A.bandChip(z.risk < 35 ? "LOW" : z.risk < 55 ? "MODERATE" : z.risk < 75 ? "HIGH" : "CRITICAL")}
+      </div>
+      <div class="sc-stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="sc-stat"><div class="l">Risk</div><div class="v" style="color:${colorFor(z.risk)}">${z.risk}</div></div>
+        <div class="sc-stat"><div class="l">Hazards</div><div class="v">${hzs.length}</div></div>
+        <div class="sc-stat"><div class="l">Equipment</div><div class="v">${eqs.length}</div></div>
+      </div>
+      <div class="mt14">
+        ${hzs.length ? hzs.map(h => `<div class="rec-item"><div class="rec-num" style="background:${SEVC[h.severity]}22;color:${SEVC[h.severity]}">!</div>
+          <div><b style="font-size:12.5px">${A.esc(h.type)}</b><div class="mut" style="font-size:11.5px">${h.severity} · ${h.status} · ${A.esc(h.action)}</div></div></div>`).join("")
+        : '<div class="empty">No open hazards in this zone ✓</div>'}
+      </div>
+      ${eqs.length ? `<div class="mt14 mut" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Equipment here</div>` +
+        eqs.map(e => `<div class="flex mt8" style="justify-content:space-between;font-size:12.5px"><span>${A.esc(e.name)}</span>
+        <span class="chip ${e.status === "OK" ? "low" : e.status === "WATCH" ? "mod" : "crit"}">${e.status}</span></div>`).join("") : ""}`;
+  }
+
+  function renderEq(s) {
+    A.q("#eqTable tbody").innerHTML = (s.equipment || []).map(e => `
+      <tr>
+        <td><b>${A.esc(e.name)}</b></td>
+        <td class="dim">${A.esc(e.zone)}</td>
+        <td><span class="chip ${e.status === "OK" ? "low" : e.status === "WATCH" ? "mod" : "crit"}"><span class="cdot"></span>${e.status}</span></td>
+        <td style="min-width:110px"><div class="flex"><div class="mbar" style="flex:1"><i style="width:${Math.min(e.load, 100)}%;background:linear-gradient(90deg,${e.load > 90 ? "#ff4d3d" : "#4db8ff"}77,${e.load > 90 ? "#ff4d3d" : "#4db8ff"})"></i></div><span class="num">${e.load}%</span></div></td>
+        <td class="num" style="color:${e.temp > 82 ? "#ff4d3d" : "#a8a292"}">${e.temp}°C</td>
+        <td class="num" style="color:${e.vib > 4.5 ? "#ff4d3d" : "#a8a292"}">${e.vib} mm/s</td>
+        <td class="num ${e.service_days < 0 ? "" : "dim"}" style="${e.service_days < 0 ? "color:#ff8a1e" : ""}">${e.service_days < 0 ? Math.abs(e.service_days) + "d overdue" : "in " + e.service_days + "d"}</td>
+      </tr>`).join("");
+  }
+
+  function renderHz(s) {
+    A.q("#hzList").innerHTML = (s.hazards || []).length ? s.hazards.map(h => `
+      <div class="rec-item">
+        <div class="rec-num" style="background:${SEVC[h.severity]}22;color:${SEVC[h.severity]}">!</div>
+        <div style="flex:1;min-width:0">
+          <div class="flex" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <b style="font-size:13px">${A.esc(h.type)}</b>${A.sevChip(h.severity)}
+          </div>
+          <div class="mut" style="font-size:11.5px;margin-top:3px">${A.esc(h.zone)} · detected by ${A.esc(h.detected_by)} · ${h.age_min.toFixed(0)} min ago</div>
+          <div class="flex mt8" style="gap:6px;flex-wrap:wrap">
+            <span class="chip mut">${A.esc(h.action)}</span>
+            <span class="chip ${h.status === "OPEN" ? "high" : "info"}">${h.status}</span>
+          </div>
+        </div>
+      </div>`).join("") : '<div class="empty">No open hazards — site is clean ✓</div>';
+  }
+
+  function renderTrend(s) {
+    C.line("#siteTrend", {
+      height: 170, yMin: 0, yMax: 100,
+      series: [{ name: S.short, color: colorFor(s.score), data: s.hist.map(p => p.v) },
+               { name: "Threshold", color: "#ff4d3d", dash: true, data: s.hist.map(() => 75) }],
+      labels: s.hist.map(p => App.timeIST(p.t).slice(0, 5))
+    });
+  }
+
+  function renderAll(s) {
+    S = s;
+    renderHead(s); renderEnv(s); renderMap(s); renderZonePanel(); renderEq(s); renderHz(s); renderTrend(s);
+  }
+  renderAll(S);
+  App.poll(`/api/sites/${S.id}`, 5000, d => renderAll(d.site));
+})();
+</script>
+{% endblock %}

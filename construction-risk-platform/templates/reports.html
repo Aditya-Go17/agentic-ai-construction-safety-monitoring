@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Reporting Agent</h2>
+    <p>Aggregates findings from all five agents into audit-ready documentation — daily reports, executive summaries, compliance packs and claim files.</p>
+  </div>
+  <div class="right">
+    <button class="btn ghost sm no-print" onclick="regen()">{{ icons.refresh() }} Regenerate</button>
+    <button class="btn sm no-print" onclick="window.print()">{{ icons.print() }} Print / PDF</button>
+  </div>
+</div>
+
+<div class="grid g12">
+  <div class="c4 no-print">
+    {% for k in d.kinds %}
+    <a class="card kind-card {{ 'active' if k.id == d.current.kind }}" style="display:flex;gap:12px;align-items:center;margin-bottom:10px"
+       href="/reports?doc={{ k.id }}&site={{ d.current.site }}">
+      <div class="k-ic" style="background:rgba(255,138,30,.13);color:var(--amber2);width:36px;height:36px;border-radius:10px;display:grid;place-items:center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:17px;height:17px"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/></svg>
+      </div>
+      <div style="flex:1">
+        <b style="font-size:13.5px">{{ k.name }}</b>
+        <div class="dim" style="font-size:11.5px;margin-top:2px">{{ k.desc }}</div>
+      </div>
+      <span class="chip mut">{{ k.cadence }}</span>
+    </a>
+    {% endfor %}
+    <div class="card mt14">
+      <div class="card-h"><h3>Parameters</h3></div>
+      <label class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700">Site scope</label>
+      <select class="inp mt8" style="width:100%" id="siteSel">
+        {% for s in d.sites %}<option value="{{ s.id }}" {{ 'selected' if s.id == d.current.site }}>{{ s.short }} — {{ s.name }}</option>{% endfor %}
+      </select>
+      <button class="btn mt14" style="width:100%;justify-content:center" onclick="jump()">{{ icons.arrow() }} Generate report</button>
+      <p class="dim mt8" style="font-size:11px;line-height:1.6">Reports compile from the live simulation state at generation time. Executive summary covers the fleet; other reports scope to the selected site.</p>
+    </div>
+  </div>
+
+  <div class="c8">
+    <div class="paper" id="paper">
+      <div class="p-head">
+        <div>
+          <div class="p-org">Site<span>Sentinel</span> AI · Site Report</div>
+          <div class="dim" style="font-size:11px;color:#4a4231;margin-top:3px;font-weight:600">Meridian Infra Group — Agentic Construction Risk Intelligence Platform</div>
+          <div class="p-title mt8">{{ d.doc.title }}</div>
+          <div style="font-size:12px;color:#6a7286">{{ d.doc.site.name }} — {{ d.doc.site.city }}</div>
+        </div>
+        <div class="p-ref">
+          Ref: <b>{{ d.doc.ref }}</b><br>
+          Generated: {{ d.doc.date }}<br>
+          Fleet index: <b>{{ d.doc.fleet }}/100 · {{ d.doc.band }}</b><br>
+          Prepared by: <b style="color:#a96e00">Reporting Agent</b>
+        </div>
+      </div>
+      <div class="p-summary"><b>Executive summary — </b>{{ d.doc.summary }}</div>
+      {% for sec_title, items in d.doc.sections %}
+      <div class="p-sec">{{ sec_title }}</div>
+      <ul>{% for it in items %}<li>{{ it }}</li>{% endfor %}</ul>
+      {% endfor %}
+      <div class="p-foot">
+        <span>{{ d.doc.footer }}</span>
+        <span>{{ d.doc.ref }} · signed hash {{ range(10**11, 10**12) | random }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function regen() {
+  const u = new URL(location);
+  u.searchParams.set("salt", Math.random().toString(36).slice(2, 8));
+  location = u;
+}
+function jump() {
+  const u = new URL(location);
+  u.searchParams.set("site", document.getElementById("siteSel").value);
+  if (!u.searchParams.get("doc")) u.searchParams.set("doc", "{{ d.current.kind }}");
+  location = u;
+}
+</script>
+{% endblock %}

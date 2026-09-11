@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Agent Orchestration</h2>
+    <p>Five specialized agents collaborate through the Risk Intelligence Engine — each with its own models, telemetry sources and output contracts. Watch them work in real time.</p>
+  </div>
+  <div class="right">
+    <select class="inp" id="pollRate"><option value="4000">Poll 4s</option><option value="8000">Poll 8s</option><option value="15000">Poll 15s</option></select>
+    <button class="btn" id="runBtn">{{ icons.play() }} Run full analysis cycle</button>
+  </div>
+</div>
+
+<!-- ═══ ORCHESTRATION DIAGRAM ═══ -->
+<section class="card">
+  <div class="card-h">
+    <div class="h-ic" style="background:rgba(255,77,61,.12);color:var(--red)">{{ icons.cpu() }}</div>
+    <h3>System Topology <span class="sub">· agent mesh → intelligence engine → outputs</span></h3>
+    <div class="right"><span class="live-badge" style="padding:4px 9px;font-size:9.5px"><span class="live-dot"></span>MESH ACTIVE</span></div>
+  </div>
+  <svg class="orch" id="orchSvg" viewBox="0 0 920 330"></svg>
+</section>
+
+<!-- ═══ AGENT CARDS ═══ -->
+<section class="grid g3" id="agentCards"></section>
+
+<!-- ═══ FEED ═══ -->
+<section class="card">
+  <div class="card-h">
+    <h3>Consolidated Agent Activity Log</h3>
+    <div class="right">
+      <input class="inp" id="feedSearch" placeholder="Search log…" style="width:200px">
+      <div class="filter-chips" id="agentFilter">
+        <span class="fchip on" data-a="all">All</span>
+        <span class="fchip" data-a="site_risk">Site Risk</span>
+        <span class="fchip" data-a="safety">Safety</span>
+        <span class="fchip" data-a="compliance">Compliance</span>
+        <span class="fchip" data-a="insurance">Insurance</span>
+        <span class="fchip" data-a="reporting">Reporting</span>
+        <span class="fchip" data-a="engine">Engine</span>
+      </div>
+    </div>
+  </div>
+  <div class="feed" id="feed" style="max-height:420px"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, D = window.__INIT;
+  let agents = D.agents, pollMs = 4000, fAgent = "all", fText = "", pollId = null;
+
+  /* ── orchestration diagram ── */
+  function drawOrch() {
+    const svg = A.q("#orchSvg");
+    const left = agents.filter(a => a.key !== "engine");
+    const engine = agents.find(a => a.key === "engine");
+    let html = `<defs>
+      <linearGradient id="coreG" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#ff4d3d" stop-opacity=".25"/><stop offset="100%" stop-color="#ffc400" stop-opacity=".25"/>
+      </linearGradient></defs>`;
+    // engine core
+    html += `
+      <circle class="node-core" cx="460" cy="165" r="58" fill="url(#coreG)" stroke="rgba(255,77,61,.5)" stroke-width="1.6"/>
+      <circle cx="460" cy="165" r="42" fill="rgba(22,20,15,.8)" stroke="rgba(255,196,0,.6)" stroke-width="1.4"/>
+      <text x="460" y="158" text-anchor="middle" fill="#ffe07a" font-size="13" font-weight="800">RISK</text>
+      <text x="460" y="176" text-anchor="middle" fill="#ffe07a" font-size="13" font-weight="800">ENGINE</text>
+      <text x="460" y="192" text-anchor="middle" fill="#948e7e" font-size="8.5" letter-spacing="1.5">ORCHESTRATOR</text>`;
+    left.forEach((a, i) => {
+      const y = 42 + i * 62, x = 130;
+      const col = a.color;
+      html += `
+        <line class="flowline" x1="${x + 105}" y1="${y + 22}" x2="400" y2="165" stroke="${col}" stroke-width="1.4" opacity=".5"/>
+        <rect x="${x - 105}" y="${y}" width="210" height="44" rx="12" fill="rgba(233,220,190,.06)" stroke="${col}66" stroke-width="1.2"/>
+        <circle cx="${x - 82}" cy="${y + 22}" r="8" fill="${col}33" stroke="${col}" stroke-width="1.4"/>
+        <text x="${x - 64}" y="${y + 19}" fill="#f2efe4" font-size="11.5" font-weight="700">${a.name}</text>
+        <text x="${x - 64}" y="${y + 33}" fill="#7d7767" font-size="9" font-family="monospace">${a.status} · ${a.events.toLocaleString("en-IN")} events</text>`;
+    });
+    const outs = [["Dashboards", "5 live views"], ["Alerts & Escalation", "Email · SMS · Slack"], ["Reports", "Daily · audit · claims"]];
+    outs.forEach((o, i) => {
+      const y = 62 + i * 100, x = 700;
+      html += `
+        <line class="flowline" x1="520" y1="165" x2="${x - 8}" y2="${y + 22}" stroke="#ffc400" stroke-width="1.4" opacity=".55"/>
+        <rect x="${x}" y="${y}" width="196" height="44" rx="12" fill="rgba(255,196,0,.07)" stroke="rgba(255,196,0,.45)" stroke-width="1.2"/>
+        <text x="${x + 16}" y="${y + 19}" fill="#ffe07a" font-size="11.5" font-weight="700">${o[0]}</text>
+        <text x="${x + 16}" y="${y + 33}" fill="#948e7e" font-size="9" font-family="monospace">${o[1]}</text>`;
+    });
+    svg.innerHTML = html;
+  }
+
+  /* ── agent cards ── */
+  function cards(d) {
+    A.q("#agentCards").innerHTML = agents.map(a => `
+      <div class="card agent-card">
+        <div class="agent-status"><span class="astatus ${a.status === "ALERT" ? "alert" : a.status === "ANALYSING" || a.status === "ORCHESTRATING" ? "ok" : "warn"}"><i></i>${a.status}</span></div>
+        <div class="flex" style="gap:12px">
+          <div class="feed-avatar" style="width:40px;height:40px;background:${a.color}1f;color:${a.color};border:1px solid ${a.color}55;border-radius:12px;font-size:13px">${a.short}</div>
+          <div><b style="font-size:15px">${a.name}</b><div class="dim" style="font-size:11px;margin-top:2px;max-width:230px;line-height:1.45">${a.role}</div></div>
+        </div>
+        <div class="agent-task">▸ ${A.esc(a.task)}</div>
+        <div class="agent-stats">
+          <div class="sc-stat"><div class="l">Events</div><div class="v">${a.events.toLocaleString("en-IN")}</div></div>
+          <div class="sc-stat"><div class="l">Latency</div><div class="v">${a.latency}<span class="dim" style="font-size:10px">ms</span></div></div>
+          <div class="sc-stat"><div class="l">Confidence</div><div class="v" style="color:#c4f07d">${a.confidence}%</div></div>
+        </div>
+        <div class="mut mt8" style="font-size:11.5px;line-height:1.5;min-height:34px"><b style="color:#a8a292">Last finding:</b> ${A.esc(a.last_finding).slice(0, 110)}${a.last_finding.length > 110 ? "…" : ""}</div>
+      </div>`).join("");
+  }
+
+  function renderFeed(d) {
+    const el = A.q("#feed");
+    if (el.children.length === 0) {
+      el.innerHTML = d.feed.map(f => feedItem(f)).join("");
+      el.dataset.lastTs = d.feed[0] ? d.feed[0].ts : "";
+    } else {
+      const before = el.querySelectorAll(".feed-item").length;
+      App.renderFeed(el, d.feed.filter(f => fAgent === "all" || f.agent === fAgent));
+    }
+    applyFilter();
+  }
+  function feedItem(f) {
+    return `<div class="feed-item" data-agent="${f.agent}">
+      ${A.agentDot(f.color, (f.agent_name || "").split(" ").map(w => w[0]).slice(0, 2).join(""))}
+      <div class="feed-body">
+        <div class="feed-meta"><span class="feed-agent" style="color:${f.color}">${A.esc(f.agent_name)}</span>${A.sevChip(f.severity)}<span class="feed-time">${A.ago(f.ts)}</span></div>
+        <div class="feed-msg">${A.esc(f.msg)}</div>
+      </div></div>`;
+  }
+  function applyFilter() {
+    A.qa("#feed .feed-item").forEach(it => {
+      const okA = fAgent === "all" || it.dataset.agent === fAgent;
+      const okT = !fText || it.textContent.toLowerCase().includes(fText);
+      it.style.display = okA && okT ? "" : "none";
+    });
+  }
+
+  function all(d) { agents = d.agents; drawOrch(); cards(d); renderFeed(d); }
+  all(D);
+
+  A.q("#runBtn").addEventListener("click", async () => {
+    const b = A.q("#runBtn");
+    b.disabled = true; b.innerHTML = "Running cycle…";
+    try {
+      const r = await fetch("/api/agents/run", { method: "POST" });
+      const res = await r.json();
+      A.toast(`Cycle ${res.cycle_id}: ${res.sites_analysed} sites · ${res.hazards_reviewed} hazards · ${res.checks_validated} checks`);
+    } catch (e) { A.toast("Cycle failed — retry"); }
+    setTimeout(() => { b.disabled = false; b.innerHTML = A.icon("play") + " Run full analysis cycle"; }, 1200);
+  });
+  A.qa("#agentFilter .fchip").forEach(ch => ch.addEventListener("click", () => {
+    A.qa("#agentFilter .fchip").forEach(c => c.classList.remove("on"));
+    ch.classList.add("on"); fAgent = ch.dataset.a;
+    A.qa("#feed .feed-item").forEach(it => { it.style.display = (fAgent === "all" || it.dataset.agent === fAgent) ? "" : "none"; });
+    applyFilter();
+  }));
+  A.q("#feedSearch").addEventListener("input", e => { fText = e.target.value.toLowerCase(); applyFilter(); });
+  A.q("#pollRate").addEventListener("change", e => {
+    pollMs = +e.target.value;
+    if (pollId) clearInterval(pollId);
+    pollId = App.poll("/api/agents", pollMs, all);
+  });
+  pollId = App.poll("/api/agents", pollMs, all);
+})();
+</script>
+{% endblock %}

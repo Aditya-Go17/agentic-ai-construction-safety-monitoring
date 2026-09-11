@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Construction Sites</h2>
+    <p>Live risk posture for every project under monitoring. Click a card to open the full site command view — zone map, equipment telemetry and environment.</p>
+  </div>
+  <div class="right">
+    <select class="inp" id="sortSel">
+      <option value="risk">Sort: Risk index</option>
+      <option value="workers">Sort: Workers</option>
+      <option value="hazards">Sort: Open hazards</option>
+      <option value="name">Sort: Name</option>
+    </select>
+    <span class="chip info"><span class="cdot"></span><span id="siteCount">{{ d.sites|length }}</span> sites monitored</span>
+  </div>
+</div>
+<div class="site-grid" id="siteGrid"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts;
+  let sites = window.__INIT.sites, sortKey = "risk";
+
+  function card(s) {
+    return `
+    <div class="card site-card" onclick="location='/sites/${s.id}'">
+      <div class="sc-top">
+        <div class="sc-score-ring"><div id="ring_${s.id}"></div><div class="val" style="color:${A.bandColor(s.score)}">${s.score.toFixed(0)}</div></div>
+        <div style="flex:1;min-width:0">
+          <div class="sc-name">${A.esc(s.name)}</div>
+          <div class="sc-meta">${A.esc(s.typelabel)} · ${A.esc(s.city)}</div>
+          <div class="mt8">${A.bandChip(s.band)}</div>
+        </div>
+      </div>
+      <div class="sc-stats">
+        <div class="sc-stat"><div class="l">Workers</div><div class="v">${s.workers_now}<span class="dim" style="font-size:10px">/${s.workers}</span></div></div>
+        <div class="sc-stat"><div class="l">Hazards</div><div class="v" style="color:${s.hazards > 4 ? "#ff4d3d" : s.hazards > 2 ? "#ff8a1e" : "#8fd14f"}">${s.hazards}</div></div>
+        <div class="sc-stat"><div class="l">PPE</div><div class="v" style="color:${s.ppe_avg < 82 ? "#ff8a1e" : "#8fd14f"}">${s.ppe_avg}%</div></div>
+      </div>
+      <div class="sc-spark" id="spark_${s.id}"></div>
+      <div class="sc-env">
+        <span class="env-pill">${A.icon("wind")} wind <b>${s.env.wind.toFixed(0)} km/h</b></span>
+        <span class="env-pill">${A.icon("temp")} <b>${s.env.temp.toFixed(0)}°C</b></span>
+        <span class="env-pill">${A.icon("drop")} rain <b>${s.env.rain24.toFixed(0)} mm</b></span>
+        <span class="env-pill">AQI <b>${s.env.aqi.toFixed(0)}</b></span>
+        <span class="env-pill" style="margin-left:auto;color:#ffc400">view site →</span>
+      </div>
+    </div>`;
+  }
+
+  function render() {
+    const sorted = [...sites].sort((a, b) => {
+      if (sortKey === "name") return a.name.localeCompare(b.name);
+      return b[sortKey === "risk" ? "score" : sortKey] - a[sortKey === "risk" ? "score" : sortKey];
+    });
+    A.q("#siteGrid").innerHTML = sorted.map(card).join("");
+    sorted.forEach(s => {
+      C.ring("#ring_" + s.id, { value: s.score, color: A.bandColor(s.score), size: 74, stroke: 6.5 });
+      C.spark("#spark_" + s.id, { data: s.trend, color: A.bandColor(s.score), height: 34 });
+    });
+  }
+  render();
+  A.q("#sortSel").addEventListener("change", e => { sortKey = e.target.value; render(); });
+  App.poll("/api/sites", 6000, d => { sites = d.sites; render(); });
+})();
+</script>
+{% endblock %}

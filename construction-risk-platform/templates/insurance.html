@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Insurance Intelligence</h2>
+    <p>Insurance Agent models exposure, scores claim risk and compiles claim documentation packs — turning safety telemetry into premium leverage.</p>
+  </div>
+  <div class="right"><a class="btn ghost sm" href="/reports?doc=claim">{{ icons.shield() }} Claim packet</a></div>
+</div>
+
+<section class="grid g4" id="kpis"></section>
+
+<section class="grid g12">
+  <div class="card c7">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(143,209,79,.12);color:var(--green)">{{ icons.shield() }}</div>
+      <h3>Claims Register <span class="sub">· sorted by value</span></h3>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="claimTbl">
+      <thead><tr><th>Claim</th><th>Site</th><th>Type</th><th>Severity</th><th>Est. value</th><th>Status</th><th>Confidence</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="card c5">
+    <div class="card-h"><h3>Claim Severity Mix</h3></div>
+    <div id="sevDonut"></div>
+    <div id="sevLegend" class="flex" style="justify-content:center;flex-wrap:wrap;gap:12px;margin-top:8px"></div>
+  </div>
+</section>
+
+<section class="grid g12">
+  <div class="card c7">
+    <div class="card-h"><h3>Claim Risk by Site <span class="sub">· EMR-weighted score</span></h3></div>
+    <div id="siteRisk"></div>
+  </div>
+  <div class="card c5">
+    <div class="card-h"><h3>Claim Cost Outflow <span class="sub">· ₹ lakh / month</span></h3></div>
+    <div id="costBars"></div>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-h">
+    <div class="h-ic" style="background:rgba(255,138,30,.12);color:var(--amber2)">{{ icons.doc() }}</div>
+    <h3>Auto-compiled Claim Documentation Packs</h3>
+    <div class="right"><span class="chip info"><span class="cdot"></span>Reporting Agent</span></div>
+  </div>
+  <div class="grid g3" style="margin-bottom:0" id="packs"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts, D = window.__INIT;
+
+  function kpis(d) {
+    const items = [
+      ["Total exposure", "₹" + d.kpis.exposure + " Cr", "shield", "#4db8ff"],
+      ["Open claims", d.kpis.open_claims, "doc", "#ff8a1e"],
+      ["Est. claim cost", "₹" + d.kpis.est_cost + " L", "gauge", "#ff4d3d"],
+      ["Fleet EMR", d.kpis.emr, "pulse", d.kpis.emr < 1 ? "#8fd14f" : "#ffc400"]
+    ];
+    A.q("#kpis").innerHTML = items.map(([l, v, ic, c], i) => `
+      <div class="card kpi"><div class="k-top"><div class="k-ic" style="background:${c}1c;color:${c}">${A.icon(ic)}</div><div class="k-label">${l}</div></div>
+      <div class="k-val" style="font-size:24px">${v}</div>
+      <div class="k-foot"><span class="dim" style="font-size:11px">${l === "Fleet EMR" ? "target < 1.00" : "across 8 sites"}</span>
+      <div class="k-spark" id="isp_${i}"></div></div></div>`).join("");
+    items.forEach(([l, v, ic, c], i) => C.spark(`#isp_${i}`, { data: Array.from({ length: 20 }, (_, j) => (typeof v === "number" ? v : 42) * (0.82 + Math.sin(j / 3 + i) * 0.12 + Math.random() * 0.06)), color: c }));
+  }
+
+  function claims(d) {
+    A.q("#claimTbl tbody").innerHTML = d.claims.map(c => `
+      <tr><td class="num" style="white-space:nowrap"><b>${c.id}</b><div class="dim" style="font-size:10.5px">filed ${c.filed}</div></td>
+      <td><b>${A.esc(c.site_short)}</b></td><td>${A.esc(c.type)}</td>
+      <td>${A.sevChip(c.severity)}</td>
+      <td class="num" style="color:#ffb27a;font-weight:700">₹${c.cost_l.toFixed(0)} L</td>
+      <td><span class="chip ${c.status === "Settled" ? "low" : c.status === "Approved" ? "info" : "mod"}">${A.esc(c.status)}</span></td>
+      <td style="min-width:90px"><div class="flex"><div class="mbar" style="flex:1"><i style="width:${c.confidence}%;background:linear-gradient(90deg,#8fd14f77,#8fd14f)"></i></div><span class="num">${c.confidence.toFixed(0)}%</span></div></td></tr>`).join("");
+  }
+
+  function sev(d) {
+    const items = [
+      { label: "Low", value: d.sev.LOW, color: "#8fd14f" },
+      { label: "Moderate", value: d.sev.MODERATE, color: "#ffcf3f" },
+      { label: "High", value: d.sev.HIGH, color: "#ff8a1e" },
+      { label: "Critical", value: d.sev.CRITICAL, color: "#ff4d3d" }
+    ];
+    const totalClaims = items.reduce((a, b) => a + b.value, 0);
+    C.donut("#sevDonut", { size: 170, center: totalClaims, centerSub: "CLAIMS", items });
+    A.q("#sevLegend").innerHTML = items.map(i =>
+      `<span class="flex" style="gap:6px;font-size:11.5px;color:var(--mut)"><i style="width:9px;height:9px;border-radius:3px;background:${i.color};display:inline-block"></i>${i.label} <b style="color:var(--txt)">${i.value}</b></span>`).join("");
+  }
+
+  function sites(d) {
+    C.hbars("#siteRisk", { items: d.by_site.map(s => ({ label: s.site + " · EMR " + s.emr.toFixed(2), value: s.risk, color: A.bandColor(s.risk), display: s.risk })), max: 100, suffix: "", valW: 44, labelW: 150 });
+  }
+
+  function costs(d) {
+    C.vbars("#costBars", { height: 190, items: d.months.map((m, i) => ({ label: m, value: d.costs[i], color: i === d.months.length - 1 ? "#ffc400" : "#4db8ff" })) });
+  }
+
+  function packs(d) {
+    A.q("#packs").innerHTML = d.packets.map(p => `
+      <div class="env-tile" style="flex-direction:row;align-items:center;gap:12px">
+        <div class="k-ic" style="background:rgba(255,138,30,.13);color:var(--amber2);width:36px;height:36px">${A.icon("doc")}</div>
+        <div style="flex:1"><b style="font-size:13px">${p.id} · ${A.esc(p.site)}</b>
+        <div class="dim" style="font-size:11px;margin-top:2px">${p.artifacts} artifacts · hash-stamped</div></div>
+        <span class="chip ${p.status === "Ready" ? "low" : "mod"}">${p.status}</span>
+      </div>`).join("");
+  }
+
+  function all(d) { kpis(d); claims(d); sev(d); sites(d); costs(d); packs(d); }
+  all(D);
+  App.poll("/api/insurance", 8000, all);
+})();
+</script>
+{% endblock %}

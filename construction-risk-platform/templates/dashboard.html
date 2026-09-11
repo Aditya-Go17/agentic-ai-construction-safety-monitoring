@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ═══ HERO ═══ -->
+<section class="card" style="margin-bottom:16px">
+  <div class="tblock">
+    <span>Client · <b>Meridian Infra</b></span>
+    <span>DWG No · <b>SS-CC-001</b></span>
+    <span>Rev · <b>C3</b></span>
+    <span>Scale · <b>NTS</b></span>
+    <span>Sheet · <b>01/10</b></span>
+    <span>Survey · <b>Live Grid</b></span>
+  </div>
+  <div class="hero">
+    <div class="hero-gauge">
+      <div class="hero-title"><span class="live-dot"></span> Fleet Risk Index</div>
+      <div id="fleetGauge"></div>
+    </div>
+  <div style="flex:1;min-width:0">
+    <div style="font-size:20px;font-weight:800;letter-spacing:-0.3px">Good shift, Site Sentinel.</div>
+    <p class="hero-sub">Five specialized agents are monitoring <b id="hSites">{{ d.kpis.sites_active }}</b> active sites and
+      <b id="hWorkers">{{ d.kpis.workers_now }}</b> workers right now — scanning weather, equipment telemetry, PPE vision feeds,
+      regulatory registers and insurance exposure. The Risk Intelligence Engine consolidates their findings every few seconds.</p>
+    <div class="hero-kpis mt14" id="heroKpis"></div>
+  </div>
+  </div>
+</section>
+
+<!-- ═══ TREND + PREDICTIONS ═══ -->
+<section class="grid g12">
+  <div class="card c8">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(77,184,255,.12);color:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/></svg></div>
+      <h3>Fleet Risk Pulse <span class="sub">· rolling live window</span></h3>
+      <div class="right"><span class="chip info"><span class="cdot"></span>auto-refresh</span></div>
+    </div>
+    <div id="trendChart"></div>
+    <div class="zm-legend">
+      <span><i style="background:var(--cyan)"></i> Fleet risk index (observed)</span>
+      <span><i style="background:var(--amber)"></i> Engine forecast (next 50 min)</span>
+      <span><i style="background:var(--red)"></i> HIGH threshold (75)</span>
+    </div>
+  </div>
+  <div class="card c4">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,77,61,.12);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+      <h3>AI Incident Forecast <span class="sub">· next 24h</span></h3>
+    </div>
+    <div id="predList"></div>
+  </div>
+</section>
+
+<!-- ═══ LEADERBOARD + FEED ═══ -->
+<section class="grid g12">
+  <div class="card c8">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,196,0,.12);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10"/></svg></div>
+      <h3>Site Risk Leaderboard</h3>
+      <div class="right"><a class="btn ghost sm" href="/sites">All sites →</a></div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="board">
+        <thead><tr><th>Site</th><th>Index</th><th>Band</th><th>Trend</th><th>Open hazards</th><th>Workers</th><th>PPE</th><th>Forecast</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card c4">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(143,209,79,.12);color:var(--green)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3"/></svg></div>
+      <h3>Agent Activity</h3>
+      <div class="right"><span class="live-badge" style="padding:4px 9px;font-size:9.5px"><span class="live-dot"></span>LIVE</span></div>
+    </div>
+    <div class="feed" id="feed"></div>
+    <a class="btn ghost sm mt14" href="/agents" style="width:100%;justify-content:center">Open agent orchestration →</a>
+  </div>
+</section>
+
+<!-- ═══ RADAR + PATTERNS + RECOMMENDATIONS ═══ -->
+<section class="grid g12">
+  <div class="card c4">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(62,201,167,.12);color:var(--purple)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 1 0 1.7 5"/></svg></div>
+      <h3>Fleet Risk Radar</h3>
+    </div>
+    <div id="radar"></div>
+    <div class="zm-legend" style="justify-content:center"><span><i style="background:var(--amber)"></i> Current factor scores</span></div>
+  </div>
+  <div class="card c4">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(77,184,255,.12);color:var(--cyan)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7 7.5l3.5 8M17 7.5l-3.5 8M7.5 6h9"/></svg></div>
+      <h3>Recurring Risk Patterns</h3>
+    </div>
+    <div id="patterns"></div>
+  </div>
+  <div class="card c4">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,196,0,.12);color:var(--amber)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg></div>
+      <h3>Engine Recommendations</h3>
+    </div>
+    <div id="recs"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts, D = window.__INIT;
+  const FACTOR_COLORS = { weather: "#4db8ff", equipment: "#ffc400", hazards: "#ff4d3d", behaviour: "#3ec9a7", compliance: "#8fd14f" };
+
+  function renderHero(d) {
+    C.gauge("#fleetGauge", { value: d.fleet, sub: d.band, size: 230 });
+    A.countUp(A.q("#hWorkers"), d.kpis.workers_now);
+    const ic = { open_hazards: "alert", ppe_avg: "helmet", compliance_rate: "clipboard", incidents30: "pulse" };
+    const lbl = { open_hazards: "Open hazards", ppe_avg: "PPE compliance", compliance_rate: "Compliance rate", incidents30: "Incidents · 30d" };
+    const mk = (key, val, dec, color) => `
+      <div class="card" style="padding:13px;background:var(--card2)">
+        <div class="kpi">
+          <div class="k-top"><div class="k-ic" style="background:${color}1c;color:${color}">${A.icon(ic[key])}</div>
+          <div class="k-label">${lbl[key]}</div></div>
+          <div class="k-val" id="kv_${key}">${val}</div>
+          <div class="k-foot"><div class="k-spark" id="sp_${key}"></div></div>
+        </div>
+      </div>`;
+    A.q("#heroKpis").innerHTML =
+      mk("open_hazards", d.kpis.open_hazards, 0, "#ff4d3d") +
+      mk("ppe_avg", d.kpis.ppe_avg, 1, "#ffc400") +
+      mk("compliance_rate", d.kpis.compliance_rate, 1, "#3ec9a7") +
+      mk("incidents30", d.kpis.incidents30, 0, "#4db8ff");
+    // sparklines under each hero KPI
+    const sparkData = (base) => Array.from({ length: 24 }, (_, j) => base * (0.82 + Math.sin(j / 3.2) * 0.13 + (j / 24) * 0.12));
+    C.spark("#sp_open_hazards", { data: sparkData(d.kpis.open_hazards || 4), color: "#ff4d3d" });
+    C.spark("#sp_ppe_avg", { data: sparkData(d.kpis.ppe_avg || 85), color: "#ffc400" });
+    C.spark("#sp_compliance_rate", { data: sparkData(d.kpis.compliance_rate || 80), color: "#3ec9a7" });
+    C.spark("#sp_incidents30", { data: sparkData(d.kpis.incidents30 || 20), color: "#4db8ff" });
+  }
+
+  function renderTrend(d) {
+    const labels = d.fleet_hist.map(p => App.timeIST(p.t).slice(0, 5));
+    const obs = d.fleet_hist.map(p => p.v);
+    const fc = Array(obs.length - 1).fill(null).concat([obs[obs.length - 1]], d.forecast.map(p => p.v));
+    C.line("#trendChart", {
+      height: 210, yMin: 0, yMax: 100,
+      series: [
+        { name: "Risk index", color: "#4db8ff", data: obs },
+        { name: "Forecast", color: "#ffc400", dash: true, fill: false, data: fc },
+        { name: "Threshold", color: "#ff4d3d", dash: true, data: obs.map(() => 75) }
+      ],
+      labels: labels.concat(d.forecast.map(() => "+"))
+    });
+  }
+
+  function renderPreds(d) {
+    A.q("#predList").innerHTML = d.hot_prediction.map(p => `
+      <div style="padding:9px 4px;border-bottom:1px dashed var(--line2)">
+        <div class="flex" style="justify-content:space-between">
+          <b style="font-size:13px">${p.short}</b>
+          <span class="chip ${p.prob > 55 ? "crit" : p.prob > 35 ? "high" : "low"}">${p.dclass}</span>
+        </div>
+        <div class="mbar mt8"><i style="width:${p.prob}%;background:linear-gradient(90deg,${A.bandColor(p.prob)}77,${A.bandColor(p.prob)})"></i></div>
+        <div class="flex mt8" style="justify-content:space-between;font-size:11px;color:var(--dim)">
+          <span>${p.prob.toFixed(0)}% probability · factor: <b style="color:${FACTOR_COLORS[p.top_factor] || "#a8a292"}">${p.top_factor}</b></span>
+          <a href="/sites/${p.id}" style="font-size:11px">inspect →</a>
+        </div>
+      </div>`).join("");
+  }
+
+  function renderBoard(d) {
+    A.q("#board tbody").innerHTML = d.sites.map(s => `
+      <tr class="clickable" onclick="location='/sites/${s.id}'">
+        <td><b>${s.short}</b><div class="dim" style="font-size:10.5px">${s.typelabel}</div></td>
+        <td><span class="num" style="color:${A.bandColor(s.score)};font-weight:800;font-size:14px">${s.score.toFixed(1)}</span></td>
+        <td>${A.bandChip(s.band)}</td>
+        <td><div class="k-spark" style="width:86px;height:26px" data-sp="${s.trend.join(",")}" data-c="${A.bandColor(s.score)}"></div></td>
+        <td><b class="num">${s.hazards}</b></td>
+        <td class="num">${s.workers_now}</td>
+        <td class="num" style="color:${s.ppe_avg < 82 ? "#ff8a1e" : "#c4f07d"}">${s.ppe_avg}%</td>
+        <td class="num">${s.prediction.prob}% <span class="dim">${s.prediction.dclass}</span></td>
+      </tr>`).join("");
+    A.qa("#board .k-spark").forEach(el => C.spark(el, { data: el.dataset.sp.split(",").map(Number), color: el.dataset.c }));
+  }
+
+  function renderRadar(d) {
+    const k = ["weather", "equipment", "hazards", "behaviour", "compliance"];
+    // approximate fleet factor averages from top sites' subscores via API field sites[].sub is absent → use patterns of first payload; fallback compute from sites' scores
+    const axes = k.map(x => ({ label: x.toUpperCase(), max: 100 }));
+    const sub = d.factor_avgs || {};
+    C.radar("#radar", { size: 250, axes, series: [{ name: "Fleet", color: "#ffc400", values: k.map(x => sub[x] || 0) }] });
+  }
+
+  function renderPatterns(d) {
+    A.q("#patterns").innerHTML = d.patterns.map(p => `
+      <div class="pat-item">
+        <div class="pat-ic">${A.icon("pattern")}</div>
+        <div style="flex:1;min-width:0">
+          <div class="pat-title">${A.esc(p.title)}</div>
+          <div class="pat-detail">${A.esc(p.detail)}</div>
+          <div class="pat-meta"><span>conf <b style="color:#e6e0cf">${p.confidence.toFixed(0)}%</b></span>
+          <div class="conf-track"><i style="width:${p.confidence}%"></i></div>
+          <span>${p.occurrences} hits · <span style="color:${p.trend[0] === "-" ? "#c4f07d" : "#ffb27a"}">${p.trend}</span></span></div>
+        </div>
+      </div>`).join("");
+  }
+
+  function renderRecs(d) {
+    A.q("#recs").innerHTML = d.recommendations.map((r, i) => `
+      <div class="rec-item">
+        <div class="rec-num">${i + 1}</div>
+        <div style="min-width:0">
+          <div class="flex" style="gap:8px;flex-wrap:wrap"><b style="font-size:12.8px">${A.esc(r.title)}</b>${A.sevChip(r.priority)}</div>
+          <div class="mut" style="font-size:12px;margin-top:3px;line-height:1.5">${A.esc(r.detail)}</div>
+        </div>
+      </div>`).join("");
+  }
+
+  function updateHeroVals(d) {
+    A.countUp(A.q("#kv_open_hazards"), d.kpis.open_hazards);
+    A.countUp(A.q("#kv_ppe_avg"), d.kpis.ppe_avg, 1);
+    A.countUp(A.q("#kv_compliance_rate"), d.kpis.compliance_rate, 1);
+    A.countUp(A.q("#kv_incidents30"), d.kpis.incidents30);
+  }
+  function renderAll(d) {
+    renderHero(d); renderTrend(d); renderPreds(d); renderBoard(d);
+    renderRadar(d); renderPatterns(d); renderRecs(d);
+    App.renderFeed(A.q("#feed"), d.feed);
+  }
+  renderAll(D);
+  App.poll("/api/overview", 5000, d => {
+    C.gauge("#fleetGauge", { value: d.fleet, sub: d.band, size: 230 });
+    A.countUp(A.q("#hWorkers"), d.kpis.workers_now);
+    updateHeroVals(d);
+    renderTrend(d); renderPreds(d); renderBoard(d); renderPatterns(d); renderRecs(d);
+    App.renderFeed(A.q("#feed"), d.feed);
+  });
+})();
+</script>
+{% endblock %}

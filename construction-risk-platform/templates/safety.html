@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>Safety Intelligence</h2>
+    <p>Safety Agent watches {{ d.kpis.cams }} vision feeds in real time — PPE compliance, unsafe behaviour and accident-prone zone analytics across all crews.</p>
+  </div>
+  <div class="right"><span class="live-badge"><span class="live-dot"></span>VISION LIVE</span></div>
+</div>
+
+<section class="grid g4" id="kpis"></section>
+
+<section class="grid g12">
+  <div class="card c5">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,196,0,.12);color:var(--amber)">{{ icons.helmet() }}</div>
+      <h3>PPE Compliance</h3><div class="right"><span class="chip mut">fleet avg</span></div>
+    </div>
+    <div id="ppeDonut"></div>
+    <div id="ppeLegend" class="flex" style="justify-content:center;flex-wrap:wrap;gap:12px;margin-top:8px"></div>
+    <div id="ppeBars" class="mt14"></div>
+  </div>
+  <div class="card c7">
+    <div class="card-h">
+      <div class="h-ic" style="background:rgba(255,77,61,.12);color:var(--red)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+      <h3>Live Violation Stream <span class="sub">· CAM detections</span></h3>
+      <div class="right"><span class="live-badge" style="padding:4px 9px;font-size:9.5px"><span class="live-dot"></span>LIVE</span></div>
+    </div>
+    <div class="tbl-wrap"><table class="tbl" id="violTbl">
+      <thead><tr><th>Time</th><th>Site</th><th>Zone</th><th>CAM</th><th>Detection</th><th>Workers</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+<section class="grid g12">
+  <div class="card c7">
+    <div class="card-h"><h3>Accident-Prone Zones <span class="sub">· top-10 hottest site zones</span></h3></div>
+    <div id="heatGrid" class="heat-grid"></div>
+    <p class="dim mt8" style="font-size:11px">Cell colour encodes composite zone risk (hazards + behaviour + environment). Hover to magnify.</p>
+  </div>
+  <div class="card c5">
+    <div class="card-h"><h3>Violations per Day <span class="sub">· 14-day</span></h3></div>
+    <div id="trendBars"></div>
+  </div>
+</section>
+
+<section class="grid g12">
+  <div class="card c7">
+    <div class="card-h"><h3>Recent Incident Register <span class="sub">· last 30 days</span></h3></div>
+    <div class="tbl-wrap"><table class="tbl" id="incTbl">
+      <thead><tr><th>Site</th><th>Type</th><th>Zone</th><th>Severity</th><th>Lost days</th><th>PPE related</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="card c5">
+    <div class="card-h"><h3>Zones on Watch</h3></div>
+    <div id="watchList"></div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__INIT = {{ d | tojson }};
+(function () {
+  const A = window.App, C = window.Charts, D = window.__INIT;
+  const PPE_META = [["helmet", "Helmet", "#ffc400"], ["vest", "Hi-vis vest", "#4db8ff"], ["harness", "Harness", "#3ec9a7"], ["goggles", "Goggles", "#8fd14f"], ["boots", "Boots", "#ff8a1e"]];
+
+  function kpis(d) {
+    const items = [
+      ["PPE compliance", d.kpis.ppe_avg + "%", "helmet", "#ffc400", d.ppe.helmet],
+      ["Violations (2h window)", d.kpis.violations_today, "alert", "#ff4d3d", d.kpis.violations_today],
+      ["Workers monitored", d.kpis.workers, "users", "#4db8ff", d.kpis.workers],
+      ["PPE-linked incidents 30d", d.kpis.ppe_incidents, "pulse", "#3ec9a7", 100 - d.kpis.ppe_avg]
+    ];
+    A.q("#kpis").innerHTML = items.map(([l, v, ic, c, sp], i) => `
+      <div class="card kpi">
+        <div class="k-top"><div class="k-ic" style="background:${c}1c;color:${c}">${A.icon(ic)}</div><div class="k-label">${l}</div></div>
+        <div class="k-val">${v}</div>
+        <div class="k-foot"><div class="k-spark" id="ksp_${i}"></div>
+        <span class="delta ${l.includes("PPE") && l.includes("comp") ? (d.kpis.ppe_avg > 88 ? "down" : "up") : "flat"}">${l.includes("comp") ? (d.kpis.ppe_avg > 88 ? "▲ healthy" : "▲ needs push") : "live"}</span></div>
+      </div>`).join("");
+    items.forEach(([l, v, ic, c, sp], i) => C.spark(`#ksp_${i}`, { data: Array.from({ length: 22 }, (_, j) => sp * (0.75 + Math.sin(j / 3 + i) * 0.14 + Math.random() * 0.08)), color: c }));
+  }
+
+  function ppe(d) {
+    C.donut("#ppeDonut", {
+      size: 175, center: d.kpis.ppe_avg + "%", centerSub: "FLEET AVG",
+      items: PPE_META.map(([k, l, c]) => ({ label: l, value: Math.max(1, d.ppe[k] - 50), color: c }))
+    });
+    A.q("#ppeLegend").innerHTML = PPE_META.map(([k, l, c]) =>
+      `<span class="flex" style="gap:6px;font-size:11.5px;color:var(--mut)"><i style="width:9px;height:9px;border-radius:3px;background:${c};display:inline-block"></i>${l} <b style="color:var(--txt)">${d.ppe[k]}%</b></span>`).join("");
+    C.hbars("#ppeBars", { items: PPE_META.map(([k, l, c]) => ({ label: l, value: d.ppe[k], color: c, display: d.ppe[k] + "%" })), max: 100, suffix: "", valW: 52 });
+  }
+
+  function violations(d) {
+    A.q("#violTbl tbody").innerHTML = d.violations.map(v => `
+      <tr><td class="num dim">${A.timeIST(v.ts)}</td><td><b>${A.esc(v.site)}</b></td>
+      <td>${A.esc(v.zone)}</td><td class="num">${A.esc(v.cam)}</td>
+      <td><b style="color:#ffb27a">${A.esc(v.type)}</b></td>
+      <td class="num">${v.workers}</td><td><span class="chip info">${A.esc(v.status)}</span></td></tr>`).join("");
+  }
+
+  function heat(d) {
+    const cols = 5, cells = d.heat.slice(0, 10);
+    A.q("#heatGrid").style.gridTemplateColumns = `repeat(${cols},1fr)`;
+    A.q("#heatGrid").innerHTML = cells.map(h => {
+      const c = A.bandColor(h.risk);
+      return `<div class="heat-cell" style="background:${c}26;border:1px solid ${c}55;color:${c}" title="${A.esc(h.site)} — ${A.esc(h.zone)}">${h.risk}</div>`;
+    }).join("");
+  }
+
+  function all(d) {
+    kpis(d); ppe(d); violations(d); heat(d);
+    C.vbars("#trendBars", { height: 180, items: d.trend_days.map((l, i) => ({ label: l.split(" ")[0], value: d.trend_counts[i], color: i === d.trend_days.length - 1 ? "#ffc400" : "#4db8ff" })) });
+    A.q("#incTbl tbody").innerHTML = d.incidents.map(i => `
+      <tr><td><b>${A.esc(i.site)}</b></td><td>${A.esc(i.type)}</td><td class="dim">${A.esc(i.zone)}</td>
+      <td>${A.sevChip(i.severity)}</td><td class="num">${i.lost_days}</td>
+      <td>${i.ppe_related ? '<span class="chip crit">YES</span>' : '<span class="chip low">no</span>'}</td></tr>`).join("");
+    A.q("#watchList").innerHTML = d.zones_watch.map(z => `
+      <div class="rec-item"><div class="rec-num" style="background:${A.bandColor(z.risk)}22;color:${A.bandColor(z.risk)}">${z.risk}</div>
+      <div style="flex:1"><b style="font-size:12.8px">${A.esc(z.site)}</b><div class="mut" style="font-size:11.5px">${A.esc(z.zone)}</div></div>
+      <div class="mbar" style="width:90px"><i style="width:${z.risk}%;background:${A.bandColor(z.risk)}"></i></div></div>`).join("");
+  }
+  all(D);
+  App.poll("/api/safety", 6000, all);
+})();
+</script>
+{% endblock %}
