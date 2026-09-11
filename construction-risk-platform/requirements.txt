@@ -1,0 +1,8 @@
+# Direct runtime dependencies for Sentinel Construction Risk Intelligence
+# The simulator itself uses only the Python standard library.
+
+# Flask web application and JSON API
+Flask>=3.0,<4.0
+
+# Production WSGI server for Render, Railway, Linux hosts, etc.
+gunicorn>=21.2,<24.0
