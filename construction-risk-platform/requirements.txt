@@ -121,3 +121,6 @@ watchdog==6.0.0
 websockets==16.0
 Werkzeug==3.1.8
 zipp==4.1.0
+Flask
+gunicorn
+pandas
