@@ -121,6 +121,10 @@ watchdog==6.0.0
 websockets==16.0
 Werkzeug==3.1.8
 zipp==4.1.0
-Flask
-gunicorn
-pandas
+urllib3==2.7.0
+uvicorn==0.50.0
+watchdog==6.0.0
+websockets==16.0
+Werkzeug==3.1.8
+zipp==4.1.0
+gunicorn==23.0.0
