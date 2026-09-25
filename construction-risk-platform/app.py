@@ -1,6 +1,7 @@
 """Agentic Construction Risk Intelligence Platform — Flask application."""
 import random
 from datetime import timedelta
+import os
 
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -290,3 +291,14 @@ def build_report(s, kind, sid, salt):
 if __name__ == "__main__":
     sim()  # boot simulation + background thread
     app.run(host="0.0.0.0", port=5000, threaded=True, use_reloader=False)
+
+
+if __name__ == "__main__":
+    sim()
+
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        threaded=True,
+        use_reloader=False
+    )

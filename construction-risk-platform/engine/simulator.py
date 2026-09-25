@@ -5,6 +5,7 @@ runs the agent feed, scores risk and powers every dashboard.
 A background thread calls tick() every TICK_SECONDS; Flask routes read
 immutable snapshots via build_*_payload() functions.
 """
+import os
 import random
 import threading
 import time
@@ -472,6 +473,22 @@ class Simulator:
                         reports_staged=5)
 
 
+    # ------------------------------------------------------------------ serverless support
+    def catchup(self):
+        """Serverless mode (VERCEL=1): background threads do not survive between
+        requests, so the world is advanced on-demand to 'now'. Capped so a
+        request after a long idle period stays fast. No-op when the tick
+        thread is running (local development)."""
+        if not getattr(self, "_serverless", False):
+            return
+        with self.lock:
+            t = time.time()
+            due = min(int((t - self._last_adv) / TICK_SECONDS), 24)
+            if due > 0:
+                for _ in range(due):
+                    self.tick()
+                self._last_adv = time.time()
+
 # ------------------------------------------------------------------ singleton
 SIM = None
 _TTHREAD = None
@@ -482,13 +499,21 @@ def get_sim():
     if SIM is None:
         SIM = Simulator()
         SIM.tick()
-        def loop():
-            while True:
-                time.sleep(TICK_SECONDS)
-                try:
-                    SIM.tick()
-                except Exception as e:  # keep the sim alive no matter what
-                    print("tick error:", e)
-        _TTHREAD = threading.Thread(target=loop, daemon=True)
-        _TTHREAD.start()
+        SIM._serverless = os.environ.get("VERCEL") == "1"
+        SIM._last_adv = time.time()
+
+        if SIM._serverless:
+            print("serverless mode: world advances on request (no tick thread)")
+        else:
+            def loop():
+                while True:
+                    time.sleep(TICK_SECONDS)
+                    try:
+                        SIM.tick()
+                    except Exception as e:  # keep the sim alive no matter what
+                        print("tick error:", e)
+            _TTHREAD = threading.Thread(target=loop, daemon=True)
+            _TTHREAD.start()
+    else:
+        SIM.catchup()
     return SIM
